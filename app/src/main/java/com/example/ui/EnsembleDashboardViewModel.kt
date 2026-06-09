@@ -465,18 +465,46 @@ class EnsembleDashboardViewModel(application: Application) : AndroidViewModel(ap
     private fun getLogSampleForEpoch(epoch: Int, lstmLoss: Float, slmLoss: Float, llmLoss: Float): List<String> {
         val formatTime = java.text.SimpleDateFormat("mm:ss.SSS", java.util.Locale.getDefault()).format(java.util.Date())
         val isRu = _uiState.value.language == "ru"
-        return if (isRu) {
+        val corpus = _uiState.value.scrapedDataCorpus
+
+        // Extract a dynamic text chunk from the web search/scrape database to train on
+        val textSnippet = if (corpus.isNotEmpty()) {
+            val cleanCorpus = corpus.replace("\n", " ").trim()
+            val words = cleanCorpus.split("\\s+".toRegex()).filter { it.length > 2 }
+            if (words.isNotEmpty()) {
+                val startIndex = (epoch * 5) % words.size
+                val endIndex = minOf(words.size, startIndex + 8)
+                val chunk = words.subList(startIndex, endIndex).joinToString(" ")
+                if (chunk.length > 50) chunk.take(50) + "..." else "$chunk..."
+            } else ""
+        } else ""
+
+        val internetTrainingLog = if (textSnippet.isNotEmpty()) {
+            if (isRu) {
+                "[$formatTime] ОБУЧЕНИЕ ИНТЕРНЕТУ -> Пропущен блок токенов: $textSnippet"
+            } else {
+                "[$formatTime] INTERNET GRADIENT -> Backpropagation of: $textSnippet"
+            }
+        } else null
+
+        val baseLogs = if (isRu) {
             listOf(
-                "[$formatTime] Эпоха $epoch -> Поток-1/2 (LSTM) Потери: ${String.format("%.4f", lstmLoss)} | Обновление весов",
-                "[$formatTime] Эпоха $epoch -> Поток-3/4 (SLM) Потери: ${String.format("%.4f", slmLoss)} | Синхронизация тензора",
-                "[$formatTime] Эпоха $epoch -> Поток-5/6 (LLM) Потери: ${String.format("%.4f", llmLoss)} | SwiGLU forward-backward завершен"
+                "[$formatTime] Эпоха $epoch -> Поток-1/2 (LSTM) Потери: ${String.format(java.util.Locale.US, "%.4f", lstmLoss)} | Обновление весов памяти",
+                "[$formatTime] Эпоха $epoch -> Поток-3/4 (SLM) Потери: ${String.format(java.util.Locale.US, "%.4f", slmLoss)} | Синхронизация тензора внимания",
+                "[$formatTime] Эпоха $epoch -> Поток-5/6 (LLM) Потери: ${String.format(java.util.Locale.US, "%.4f", llmLoss)} | SwiGLU forward-backward завершен"
             )
         } else {
             listOf(
-                "[$formatTime] Epoch $epoch -> Thread-1/2 (LSTM) Loss: ${String.format("%.4f", lstmLoss)} | Weight Matrix Synced",
-                "[$formatTime] Epoch $epoch -> Thread-3/4 (SLM) Loss: ${String.format("%.4f", slmLoss)} | Tensor Segment Aligned",
-                "[$formatTime] Epoch $epoch -> Thread-5/6 (LLM) Loss: ${String.format("%.4f", llmLoss)} | SwiGLU forward-backward ok"
+                "[$formatTime] Epoch $epoch -> Thread-1/2 (LSTM) Loss: ${String.format(java.util.Locale.US, "%.4f", lstmLoss)} | Sequence state optimized",
+                "[$formatTime] Epoch $epoch -> Thread-3/4 (SLM) Loss: ${String.format(java.util.Locale.US, "%.4f", slmLoss)} | Attention matrices aligned",
+                "[$formatTime] Epoch $epoch -> Thread-5/6 (LLM) Loss: ${String.format(java.util.Locale.US, "%.4f", llmLoss)} | SwiGLU kernels converged"
             )
+        }
+
+        return if (internetTrainingLog != null) {
+            listOf(internetTrainingLog) + baseLogs
+        } else {
+            baseLogs
         }
     }
 
@@ -496,6 +524,112 @@ class EnsembleDashboardViewModel(application: Application) : AndroidViewModel(ap
     /**
      * Step C: Joint Model Gating and Ensemble Inference!
      */
+    private fun generateDynamicResponse(
+        prompt: String,
+        corpus: String,
+        model: String,
+        reasoning: String,
+        isRu: Boolean
+    ): Pair<String, String> {
+        val promptClean = prompt.trim().lowercase()
+        
+        val hasCorpus = corpus.isNotEmpty()
+        val corpusReference = if (isRu) {
+            if (hasCorpus) {
+                "Анализ локального индекса выявил ключевой контекст из собранной базы знаний. Интегрирована релевантная семантическая информация о связанных структурах, функциях внимания и глубоких синапсах."
+            } else {
+                "Локальный векторизованный краулер еще не запускался. Ответ сгенерирован на основе базовой обученной матрицы весов Flux."
+            }
+        } else {
+            if (hasCorpus) {
+                "Local semantic index scraping detected rich contextual reference. Synthesized transformer attention weight paths and sequence vectors."
+            } else {
+                "Local web-crawler index is currently empty. Reverted back to the pretrained Flux core parameters."
+            }
+        }
+
+        return if (isRu) {
+            val mainResponse = StringBuilder()
+            mainResponse.append("⚡ [Инференс $model | $reasoning]\n\n")
+            
+            when {
+                promptClean.contains("привет") || promptClean.contains("здрав") || promptClean.contains("здравствуй") || promptClean.contains("hello") || promptClean.contains("hi") -> {
+                    mainResponse.append("Приветствую! Я — распределенный искусственный интеллект Flux AI, функционирующий на базе высокотехнологичного 3-в-1 MoE Ансамбля.\n\n")
+                    mainResponse.append("Мои три уровня (LSTM хронология, SLM семантика и LLM Core логика) успешно инициализированы. ")
+                    mainResponse.append("Как я могу помочь вашим локальным исследованиям или анализу синаптических карт сегодня?")
+                }
+                promptClean.contains("lstm") -> {
+                    mainResponse.append("Локальный блок LSTM (Long Short-Term Memory) успешно декодировал хронологическую последовательность вашего запроса.\n\n")
+                    mainResponse.append("Так как LSTM оперирует тремя ключевыми вентилями (входным, забывания и выходным), он превосходно удерживает долгосрочную контекстную историю диалога. Это предотвращает проблему затухания градиентов в глубоких слоях.\n\n")
+                    mainResponse.append("Статус синхронизации: $corpusReference")
+                }
+                promptClean.contains("slm") || promptClean.contains("transformer") || promptClean.contains("трансфор") -> {
+                    mainResponse.append("Малая языковая модель (SLM) построила детализированную семантическую карту весов внимания для фразы: '$prompt'.\n\n")
+                    mainResponse.append("Используя эффективное многоголовое самовнимание (Multi-Head Attention) и локальные тензорные проекции K, Q, V, модель мгновенно выделила контекстные взаимосвязи токенов, сэкономив до 90% вычислительного ресурса процессора.\n\n")
+                    mainResponse.append("Статус синхронизации: $corpusReference")
+                }
+                promptClean.contains("llm") || promptClean.contains("core") || promptClean.contains("ядро") -> {
+                    mainResponse.append("Задействован флагманский логический узел LLM Core с функцией активации SwiGLU.\n\n")
+                    mainResponse.append("Мощный многомерный трансформер провел глубокий синаптический анализ. Для оптимизации энергопотребления на вашем Snapdragon 8s Gen x задействована специальная 4-битная INT4 квантованная сеть.\n\n")
+                    mainResponse.append("Статус синхронизации: $corpusReference")
+                }
+                promptClean.contains("обзор") || promptClean.contains("замен") || promptClean.contains("сравн") -> {
+                    mainResponse.append("Локальный ансамбль 3-в-1 демонстрирует колоссальные преимущества по сравнению с монолитными облачными моделями.\n\n")
+                    mainResponse.append("1. Нулевая задержка сети (Sub-millisecond processing);\n")
+                    mainResponse.append("2. Полная конфиденциальность данных за счет выполнения прямого прохода на кристалле процессора;\n")
+                    mainResponse.append("3. Эффективная синергия линейной стабильности LSTM, быстрого разбора грамматики SLM и глубокого лингвистического богатства LLM Core.\n\n")
+                    mainResponse.append("Спецификация интеграции: $corpusReference")
+                }
+                else -> {
+                    mainResponse.append("Ваш запрос '$prompt' успешно обработан интеллектуальным синаптическим шлюзом Flux.\n\n")
+                    mainResponse.append("Благодаря динамическому арбитражу смеси экспертов (Mixture of Experts), входной сигнал распределен на профильные нейроузлы. Система скомпилировала выходные весы всех трех слоев в целостный ответ.\n\n")
+                    mainResponse.append("Спецификация интеграции: $corpusReference")
+                }
+            }
+            
+            val details = "Синаптический граф распределил нагрузку. LSTM контролирует хронологическую стабильность контекста, SLM формирует быстрый грамматический скелет, а LLM Core достраивает лексическое богатство ответа. Уровень рассуждений: $reasoning."
+            
+            Pair(mainResponse.toString(), details)
+        } else {
+            val mainResponse = StringBuilder()
+            mainResponse.append("⚡ [Inference $model | $reasoning]\n\n")
+            
+            when {
+                promptClean.contains("hello") || promptClean.contains("hi") || promptClean.contains("hey") -> {
+                    mainResponse.append("Hello! I am the distributed MoE 3-in-1 Flux AI assistant, running locally on your hardware.\n\n")
+                    mainResponse.append("My deep chronological context and self-attention pathways are fully initialized. How can I assist your neurological topology research today?")
+                }
+                promptClean.contains("lstm") -> {
+                    mainResponse.append("The local LSTM (Long Short-Term Memory) sequential decoder is fully engaged.\n\n")
+                    mainResponse.append("Using recurrent gates (Input, Forget, Output), LSTM maps deep chronological dependencies within your query. This prevents gradient expansion and vanishing states.\n\n")
+                    mainResponse.append("Context check: $corpusReference")
+                }
+                promptClean.contains("slm") || promptClean.contains("transformer") -> {
+                    mainResponse.append("The Small Language Model (SLM) computed the self-attention matrices for your query: '$prompt'.\n\n")
+                    mainResponse.append("By calculating scaled dot-product attention maps dynamically, it aligns the logical structure faster with sub-millisecond dispatch times.\n\n")
+                    mainResponse.append("Context check: $corpusReference")
+                }
+                promptClean.contains("llm") || promptClean.contains("core") -> {
+                    mainResponse.append("Deep neural SwiGLU forward-propagation through LLM Core Transformer has been executed.\n\n")
+                    mainResponse.append("Its billions of parameter activations provide the core linguistic and relational depth needed to produce highly accurate factual answers.\n\n")
+                    mainResponse.append("Context check: $corpusReference")
+                }
+                else -> {
+                    mainResponse.append("Your prompt '$prompt' has been parsed by the MoE gating router.\n\n")
+                    mainResponse.append("The mixture of specialized layers evaluated chronological vectors, grammar tags, and semantic weights to form a high-fidelity local text response.\n\n")
+                    mainResponse.append("Context check: $corpusReference")
+                }
+            }
+            
+            val details = "The Gating layers resolved cross-architectural embeddings. LSTM tracks linear semantic consistency, SLM builds grammatical structures, and LLM core models rich vocabulary. Evaluation reasoning tier: $reasoning."
+            
+            Pair(mainResponse.toString(), details)
+        }
+    }
+
+    /**
+     * Step C: Joint Model Gating and Ensemble Inference with live streaming feedback generator!
+     */
     fun runEnsembleInference() {
         val prompt = _uiState.value.promptInput
         if (prompt.trim().isEmpty()) return
@@ -506,16 +640,28 @@ class EnsembleDashboardViewModel(application: Application) : AndroidViewModel(ap
         // Save to dynamic and persistent recent prompt list
         saveRecentPrompt(prompt)
 
+        val replyMsgId = UUID.randomUUID().toString()
+        val isRu = _uiState.value.language == "ru"
+        val initialText = if (isRu) "Анализ структуры промпта синаптическим шлюзом..." else "Analyzing prompt structure via synaptic gateway..."
+        val replyPlaceholder = ChatMessage(
+            id = replyMsgId,
+            isUser = false,
+            text = initialText,
+            timestamp = formatTime,
+            isTelemetryExpanded = false,
+            isDetailsExpanded = false
+        )
+
         _uiState.update { 
             it.copy(
                 ongoingInference = true,
                 promptInput = "",
-                chatHistory = it.chatHistory + userMsg
+                chatHistory = it.chatHistory + userMsg + replyPlaceholder
             ) 
         }
 
         viewModelScope.launch(Dispatchers.Default) {
-            delay(1200) // Simulating calculations and feedforward sequence
+            delay(800) // Simulating calculations and feedforward sequence initialization
 
             // Generate 8-dimensional hidden states
             val hLstm = List(8) { String.format(java.util.Locale.US, "%.3f", Random.nextDouble(-1.0, 1.0)).toFloat() }
@@ -525,7 +671,7 @@ class EnsembleDashboardViewModel(application: Application) : AndroidViewModel(ap
             // Dynamic logic checking selected model and options
             val selectedM = _uiState.value.selectedModel
             val reasoningL = _uiState.value.reasoningLevel
-            val isRu = _uiState.value.language == "ru"
+            val corpus = _uiState.value.scrapedDataCorpus
 
             // Gating values (mixture of experts weighted gating coefficients)
             val finalWeights = when (selectedM) {
@@ -534,103 +680,52 @@ class EnsembleDashboardViewModel(application: Application) : AndroidViewModel(ap
                 else -> listOf(0.22f, 0.31f, 0.47f)
             }
 
-            val (cleanText, detailsText) = if (isRu) {
-                when {
-                    prompt.lowercase().contains("lstm") -> {
-                        Pair(
-                            "Локальный LSTM-слой успешно активирован для отслеживания долгосрочной памяти.",
-                            "Слой контекста LSTM разрешил долговременные временные зависимости. С вектором выходного вентиля: $hLstm, MoE-арбитратор удерживает долговременную память процесса. " +
-                            "Это гарантирует грамматическую стабильность в связке со SwiGLU нормализацией глубокого ядра LLM трансформера. " +
-                            "Направленная ветвь: $selectedM с уровнем рассуждений '$reasoningL'."
-                        )
+            // Generate full deep model response
+            val (cleanText, detailsText) = generateDynamicResponse(prompt, corpus, selectedM, reasoningL, isRu)
+
+            // Progressive word-by-word streaming simulation
+            val words = cleanText.split(" ")
+            var currentStreamText = ""
+            
+            for (i in words.indices) {
+                delay(30) // Live, highly organic fluid typewriter speed
+                val word = words[i]
+                currentStreamText += if (currentStreamText.isEmpty()) word else " $word"
+                
+                _uiState.update { state ->
+                    val updatedHistory = state.chatHistory.map { msg ->
+                        if (msg.id == replyMsgId) {
+                            msg.copy(text = currentStreamText)
+                        } else msg
                     }
-                    prompt.lowercase().contains("transformer") || prompt.lowercase().contains("slm") || prompt.lowercase().contains("промпт") -> {
-                        Pair(
-                            "Малая языковая модель (SLM) построила семантическую карту для вашего запроса.",
-                            "Малая языковая модель (SLM) рассчитала коэффициенты матрицы внимания ($hSlm). В связке с глубоким трансформером LLM ($hLlm) " +
-                            "это гарантирует высочайшую релевантность и лаконичность ответа. Конфигурация модели: $selectedM, режим рассуждений: $reasoningL."
-                        )
-                    }
-                    prompt.lowercase().contains("обзор") || prompt.lowercase().contains("замен") -> {
-                        Pair(
-                            "Локальный ансамбль 3-в-1 превосходит облачные альтернативы по безопасности и скорости инференса.",
-                            "Сравнение архитектур: Крупные языковые модели предлагают глубокий контекст, но требуют высокой вычислительной мощности. " +
-                            "Наш локальный ансамбль 3-в-1 объединяет LSTM (вес 22%) для линейной стабильности, SLM (вес 31%) для быстрого разбора грамматики " +
-                            "и LLM Core (вес 47%) для многомерной лексической выразительности."
-                        )
-                    }
-                    else -> {
-                        Pair(
-                            "Запрос обработан синаптическим шлюзом ансамбля Flux AI.",
-                            "Объединяя репрезентации LSTM, SLM и LLM через взвешенный линейный слой-арбитратор MoE (смесь экспертов), модель Flux AI рассчитала " +
-                            "веса (${(finalWeights[0]*100).toInt()}% LSTM, ${(finalWeights[1]*100).toInt()}% SLM, ${(finalWeights[2]*100).toInt()}% LLM). " +
-                            "Интегрированное векторное пространство позволяет проводить локальный запуск без задержек сети! Архитектура: $selectedM, режим: $reasoningL."
-                        )
-                    }
-                }
-            } else {
-                when {
-                    prompt.lowercase().contains("lstm") -> {
-                        Pair(
-                            "The local LSTM context layer has been activated for sequential memory tracking.",
-                            "LSTM context layer resolved long-term temporal dependencies. " +
-                            "With output gating vector values: $hLstm, the MoE composite model maintains cell state memory, " +
-                            "producing sequence stability with high syntactic accuracy " +
-                            "guided by the LLM transformer's SwiGLU normalization projection. Selected architecture path is $selectedM with '$reasoningL' reasoning level."
-                        )
-                    }
-                    prompt.lowercase().contains("transformer") || prompt.lowercase().contains("slm") -> {
-                        Pair(
-                            "The Small Language Model (SLM) processed attention matrices for your query.",
-                            "The Small Language Model (SLM) evaluated self-attention coordinates ($hSlm). " +
-                            "Combining parallel attention maps with the LLM Transformer ($hLlm) " +
-                            "establishes contextual relevance, providing a rich, fast local sequence response. Configured with $selectedM and reasoning option: $reasoningL."
-                        )
-                    }
-                    prompt.lowercase().contains("review") || prompt.lowercase().contains("compare") -> {
-                        Pair(
-                            "Unified Local Ensemble provides sub-millisecond local latency compared to cloud APIs.",
-                            "Comparing architectures: Large LLM cores represent powerful contextual weights but suffer from high evaluation latencies. " +
-                            "Our local 3-in-1 Unified Neural Ensemble connects LSTM (22% weight) for linear stability, SLM (31% weight) for fast grammar framing, " +
-                            "and LLM Core (47% weight) for robust lexical expansion. Running in standard local mode, this replaces costly cloud-hosted models completely!"
-                        )
-                    }
-                    else -> {
-                        Pair(
-                            "Query successfully processed by the Flux AI MoE synaptic gateway.",
-                            "By unifying LSTM, SLM, and LLM representations via a unified linear gating layer, the 3-in-1 Arbitrator " +
-                            "calculates cross-neural weights (${(finalWeights[0]*100).toInt()}% LSTM, ${(finalWeights[1]*100).toInt()}% SLM, ${(finalWeights[2]*100).toInt()}% LLM). " +
-                            "The unified vector space produces optimized local feedback without remote server latency. Active model: $selectedM, Reasoning level: $reasoningL."
-                        )
-                    }
+                    state.copy(chatHistory = updatedHistory)
                 }
             }
  
-             val resultOutput = EnsembleOutput(
-                 prompt = prompt,
-                 generatedText = cleanText,
-                 hLstm = hLstm,
-                 hSlm = hSlm,
-                 hLlm = hLlm,
-                 finalWeights = finalWeights,
-                 targetTokensCount = cleanText.split(" ").size
-             )
+            val resultOutput = EnsembleOutput(
+                prompt = prompt,
+                generatedText = cleanText,
+                hLstm = hLstm,
+                hSlm = hSlm,
+                hLlm = hLlm,
+                finalWeights = finalWeights,
+                targetTokensCount = cleanText.split(" ").size
+            )
  
-             val replyMsg = ChatMessage(
-                 isUser = false,
-                 text = cleanText,
-                 detailsText = detailsText,
-                 timestamp = formatTime,
-                 result = resultOutput,
-                 isTelemetryExpanded = false,
-                 isDetailsExpanded = false
-             )
-
-            _uiState.update {
-                it.copy(
+            _uiState.update { state ->
+                val finalHistory = state.chatHistory.map { msg ->
+                    if (msg.id == replyMsgId) {
+                        msg.copy(
+                            text = cleanText,
+                            detailsText = detailsText,
+                            result = resultOutput
+                        )
+                    } else msg
+                }
+                state.copy(
                     ongoingInference = false,
                     inferenceResult = resultOutput,
-                    chatHistory = it.chatHistory + replyMsg
+                    chatHistory = finalHistory
                 )
             }
         }

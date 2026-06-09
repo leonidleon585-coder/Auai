@@ -185,7 +185,7 @@ fun EnsembleDashboard(
             initialValue = 0f,
             targetValue = 1f,
             animationSpec = infiniteRepeatable(
-                animation = tween(15000, easing = LinearEasing),
+                animation = tween(4000, easing = LinearEasing),
                 repeatMode = RepeatMode.Restart
             ),
             label = "particle_progress"
@@ -583,16 +583,21 @@ fun EnsembleDashboard(
 
                         // Dotted galaxy matrix at bottom (DYNAMIC drifting particles!)
                         val rnd = Random(42)
+                        val isFlowActive = state.status == TaskStatus.TRAINING || state.ongoingInference
+                        val speedMultiplier = if (isFlowActive) 4.5f else 1.8f
+                        
                         for (i in 1..80) {
                             val initialX = rnd.nextFloat() * size.width
                             val initialY = (rnd.nextFloat() * size.height)
                             
-                            // Drift velocities
-                            val speedX = (rnd.nextFloat() - 0.5f) * 60f
-                            val speedY = -(0.2f + rnd.nextFloat() * 0.8f) * 80f // Float upwards
+                            // Drift velocities (significantly larger and faster)
+                            val speedX = (rnd.nextFloat() - 0.5f) * 150f * speedMultiplier
+                            val speedY = -(0.4f + rnd.nextFloat() * 1.6f) * 200f * speedMultiplier // Float upwards
                             
-                            val opacity = 0.06f + (rnd.nextFloat() * 0.18f)
-                            val ptRadius = 1.dp.toPx() + (rnd.nextFloat() * 2.dp.toPx())
+                            // Sparkle phase using sinusodial math for seamless, beautiful twinkling
+                            val sparkle = 0.5f + 0.5f * kotlin.math.sin((particleProgress * 2 * Math.PI.toFloat()) + i * 0.15f)
+                            val opacity = (0.05f + (rnd.nextFloat() * 0.20f)) * sparkle
+                            val ptRadius = 1.dp.toPx() + (rnd.nextFloat() * 2.5.dp.toPx())
                             
                             // Displace coordinates using particleProgress
                             var currentX = (initialX + speedX * particleProgress) % size.width
@@ -1360,7 +1365,7 @@ fun SystemTelemetryHub(
                                     containerColor = if (state.language == "ru") GeminiBlueAccent else GeminiPillBase,
                                     contentColor = GeminiTextLight
                                 ),
-                                shape = CircleShape,
+                                shape = RoundedCornerShape(8.dp),
                                 modifier = Modifier.weight(1f)
                             ) {
                                 Text("Русский 🇷🇺", style = LocalCyberTypography.mono, fontSize = 11.sp)
@@ -1371,7 +1376,7 @@ fun SystemTelemetryHub(
                                     containerColor = if (state.language == "en") GeminiBlueAccent else GeminiPillBase,
                                     contentColor = GeminiTextLight
                                 ),
-                                shape = CircleShape,
+                                shape = RoundedCornerShape(8.dp),
                                 modifier = Modifier.weight(1f)
                             ) {
                                 Text("English 🇬🇧", style = LocalCyberTypography.mono, fontSize = 11.sp)
@@ -1535,6 +1540,11 @@ fun SystemTelemetryHub(
                     }
                 }
             }
+        }
+
+        // ANN TOPOLOGY GRAPH (Visualizes sequential gating connections and live electrical flow)
+        item {
+            NeuralTopologyGraph(state = state)
         }
 
         // NEURAL MODULE METRICS (UNDERSTANDING & RESPONSE LOGIC)
@@ -1722,7 +1732,9 @@ fun SystemTelemetryHub(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
+                        Column(
+                            modifier = Modifier.weight(1f).padding(end = 8.dp)
+                        ) {
                             Text(
                                 text = state.t("scraper_title"),
                                 style = LocalCyberTypography.title.copy(fontSize = 14.sp),
@@ -1743,7 +1755,7 @@ fun SystemTelemetryHub(
                             onClick = { viewModel.startUrlScraping() },
                             enabled = state.status != TaskStatus.CRAWLING && state.status != TaskStatus.TRAINING,
                             colors = ButtonDefaults.buttonColors(containerColor = GeminiGreenAccent, contentColor = Color.Black),
-                            shape = CircleShape,
+                            shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.testTag("scrape_data_button")
                         ) {
                             Text(
@@ -1813,7 +1825,9 @@ fun SystemTelemetryHub(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
+                        Column(
+                            modifier = Modifier.weight(1f).padding(end = 8.dp)
+                        ) {
                             Text(
                                 text = state.t("training_hub"),
                                 style = LocalCyberTypography.title.copy(fontSize = 14.sp),
@@ -1840,7 +1854,7 @@ fun SystemTelemetryHub(
                                 containerColor = if (state.status == TaskStatus.TRAINING) Color(0xFFE91E63) else GeminiBlueAccent,
                                 contentColor = Color.White
                             ),
-                            shape = CircleShape,
+                            shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.testTag("train_ensemble_button")
                         ) {
                             Text(
@@ -1995,6 +2009,220 @@ fun LegendLabel(label: String, color: Color) {
         Box(modifier = Modifier.size(6.dp).background(color))
         Spacer(modifier = Modifier.width(4.dp))
         Text(text = label, style = LocalCyberTypography.mono, fontSize = 9.sp, color = GeminiTextLight)
+    }
+}
+
+@Composable
+fun NeuralTopologyGraph(
+    state: DashboardState,
+    modifier: Modifier = Modifier
+) {
+    val isRu = state.language == "ru"
+    val isRunning = state.status == TaskStatus.TRAINING || state.ongoingInference
+
+    // Infinite animation transition for the electric routing signal flow
+    val infiniteTransition = rememberInfiniteTransition(label = "synapse_animation")
+    val flowOffset by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(if (isRunning) 1500 else 4000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "flow_offset"
+    )
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = GeminiSheetBg),
+        border = BorderStroke(1.dp, GeminiPillBase)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = if (isRu) "ТОПОЛОГИЯ НЕЙРОННЫХ УЗЛОВ АНСАМБЛЯ" else "ANN ENSEMBLE TOPOLOGY GRAPH",
+                style = LocalCyberTypography.title.copy(fontSize = 14.sp),
+                color = GeminiBlueAccent
+            )
+
+            Text(
+                text = if (isRu) 
+                    "Визуализация синаптических связей и передачи импульсов между LSTM, SLM и LLM Core слоями в реальном времени."
+                else 
+                    "Real-time visual diagram of feedforward connections and signal propagation between standard LSTM, SLM, and LLM Core nodes.",
+                style = LocalCyberTypography.mono,
+                fontSize = 10.sp,
+                color = GeminiTextMuted
+            )
+
+            // Let's draw the topology with customized coordinates on a Canvas!
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color.Black.copy(alpha = 0.6f))
+                    .border(1.dp, GeminiPillBase.copy(alpha = 0.5f))
+            ) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val w = size.width
+                    val h = size.height
+
+                    // We will define 3 columns of nodes (LSTM, SLM, LLM)
+                    val x1 = w * 0.18f  // Column 1: LSTM
+                    val x2 = w * 0.50f  // Column 2: SLM
+                    val x3 = w * 0.82f  // Column 3: LLM
+
+                    // Each column will have 4 neural nodes spaced vertically
+                    val nodes1 = List(4) { idx -> Offset(x1, h * (0.2f + idx * 0.2f)) }
+                    val nodes2 = List(4) { idx -> Offset(x2, h * (0.2f + idx * 0.2f)) }
+                    val nodes3 = List(4) { idx -> Offset(x3, h * (0.2f + idx * 0.2f)) }
+
+                    // Column 1 -> Column 2 connections
+                    for (n1 in nodes1) {
+                        for (n2 in nodes2) {
+                            drawLine(
+                                color = GeminiBlueAccent.copy(alpha = if (isRunning) 0.35f else 0.15f),
+                                start = n1,
+                                end = n2,
+                                strokeWidth = 1.dp.toPx()
+                            )
+                            
+                            val px = n1.x + (n2.x - n1.x) * flowOffset
+                            val py = n1.y + (n2.y - n1.y) * flowOffset
+                            drawCircle(
+                                color = GeminiOrangeAccent,
+                                radius = 2.dp.toPx(),
+                                center = Offset(px, py)
+                            )
+                        }
+                    }
+
+                    // Column 2 -> Column 3 connections
+                    for (n2 in nodes2) {
+                        for (n3 in nodes3) {
+                            drawLine(
+                                color = GeminiGreenAccent.copy(alpha = if (isRunning) 0.35f else 0.15f),
+                                start = n2,
+                                end = n3,
+                                strokeWidth = 1.dp.toPx()
+                            )
+
+                            val flowShift = (flowOffset + 0.5f) % 1.0f
+                            val px = n2.x + (n3.x - n2.x) * flowShift
+                            val py = n2.y + (n3.y - n2.y) * flowShift
+                            drawCircle(
+                                color = GeminiBlueAccent,
+                                radius = 2.dp.toPx(),
+                                center = Offset(px, py)
+                            )
+                        }
+                    }
+
+                    // Now draw the actual Neural Nodes as filled glowing circles
+                    // Column 1: LSTM (Orange)
+                    nodes1.forEach { node ->
+                        val glow = if (isRunning) 4.dp.toPx() else 1.dp.toPx()
+                        drawCircle(color = GeminiOrangeAccent.copy(alpha = 0.2f), radius = 10.dp.toPx() + glow, center = node)
+                        drawCircle(color = GeminiOrangeAccent, radius = 6.dp.toPx(), center = node)
+                        drawCircle(color = Color.White, radius = 2.dp.toPx(), center = node)
+                    }
+
+                    // Column 2: SLM (Blue)
+                    nodes2.forEach { node ->
+                        val glow = if (isRunning) 4.dp.toPx() else 1.dp.toPx()
+                        drawCircle(color = GeminiBlueAccent.copy(alpha = 0.2f), radius = 10.dp.toPx() + glow, center = node)
+                        drawCircle(color = GeminiBlueAccent, radius = 6.dp.toPx(), center = node)
+                        drawCircle(color = Color.White, radius = 2.dp.toPx(), center = node)
+                    }
+
+                    // Column 3: LLM (Green)
+                    nodes3.forEach { node ->
+                        val glow = if (isRunning) 4.dp.toPx() else 1.dp.toPx()
+                        drawCircle(color = GeminiGreenAccent.copy(alpha = 0.2f), radius = 10.dp.toPx() + glow, center = node)
+                        drawCircle(color = GeminiGreenAccent, radius = 6.dp.toPx(), center = node)
+                        drawCircle(color = Color.White, radius = 2.dp.toPx(), center = node)
+                    }
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.TopCenter)
+                        .padding(top = 8.dp, start = 12.dp, end = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Layer-1\n[LSTM Context]", style = LocalCyberTypography.mono, fontSize = 8.sp, color = GeminiOrangeAccent, textAlign = TextAlign.Center)
+                    Text("Layer-2\n[SLM Self-Attention]", style = LocalCyberTypography.mono, fontSize = 8.sp, color = GeminiBlueAccent, textAlign = TextAlign.Center)
+                    Text("Layer-3\n[LLM Core SwiGLU]", style = LocalCyberTypography.mono, fontSize = 8.sp, color = GeminiGreenAccent, textAlign = TextAlign.Center)
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 6.dp, start = 12.dp, end = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Recurrent Cell", style = LocalCyberTypography.mono, fontSize = 7.sp, color = GeminiTextMuted, textAlign = TextAlign.Center)
+                    Text("QK Attention Map", style = LocalCyberTypography.mono, fontSize = 7.sp, color = GeminiTextMuted, textAlign = TextAlign.Center)
+                    Text("FeedForward Projection", style = LocalCyberTypography.mono, fontSize = 7.sp, color = GeminiTextMuted, textAlign = TextAlign.Center)
+                }
+            }
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = if (isRu) "Вентили LSTM" else "LSTM Gates",
+                        style = LocalCyberTypography.mono,
+                        fontSize = 9.sp,
+                        color = GeminiOrangeAccent,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = if (isRu) "Удержание истории в ячейках" else "Cell state chronological protection",
+                        style = LocalCyberTypography.body,
+                        fontSize = 9.sp,
+                        color = GeminiTextMuted
+                    )
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = if (isRu) "Матрицы SLM" else "SLM Matrices",
+                        style = LocalCyberTypography.mono,
+                        fontSize = 9.sp,
+                        color = GeminiBlueAccent,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = if (isRu) "Быстродействующий синтаксис" else "Ultra low-latency token indexing",
+                        style = LocalCyberTypography.body,
+                        fontSize = 9.sp,
+                        color = GeminiTextMuted
+                    )
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = if (isRu) "Выход LLM" else "LLM Generation",
+                        style = LocalCyberTypography.mono,
+                        fontSize = 9.sp,
+                        color = GeminiGreenAccent,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = if (isRu) "Логический вывод глубокого ядра" else "Lexical compilation of output layer",
+                        style = LocalCyberTypography.body,
+                        fontSize = 9.sp,
+                        color = GeminiTextMuted
+                    )
+                }
+            }
+        }
     }
 }
 
