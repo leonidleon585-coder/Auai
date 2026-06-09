@@ -1,6 +1,8 @@
 package com.example.ui
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import android.content.Context
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.config.EnsembleSystemConfig
 import com.example.config.ModelType
@@ -48,7 +50,9 @@ data class ChatMessage(
     val text: String,
     val timestamp: String,
     val result: EnsembleOutput? = null,
-    val isTelemetryExpanded: Boolean = false
+    val isTelemetryExpanded: Boolean = false,
+    val detailsText: String = "",
+    val isDetailsExpanded: Boolean = false
 )
 
 data class DashboardState(
@@ -78,14 +82,25 @@ data class DashboardState(
     val ongoingInference: Boolean = false,
     val inferenceResult: EnsembleOutput? = null,
     
-    // Gemini-specific Chat History State
+    // Conversational Chat History State (Grounded on local indices)
     val chatHistory: List<ChatMessage> = emptyList(),
-    val selectedModel: String = "3.5 Flash",
+    val selectedModel: String = "Flux Flash",
     val reasoningLevel: String = "Стандартный",
-    val activeGreetingPhrase: String = "User 19, приступим!"
+    val activeGreetingPhrase: String = "Оператор, поехали!",
+    
+    // Localization & Personalization Extensions
+    val language: String = "ru",
+    val nickname: String = "",
+    val avatarId: Int = 0,
+    val interfaceName: String = "Flux AI",
+    val routingMethod: String = "Arbitrator MoE",
+    val learningRate: Double = 0.005,
+    val recentPromptsList: List<String> = emptyList()
 )
 
-class EnsembleDashboardViewModel : ViewModel() {
+class EnsembleDashboardViewModel(application: Application) : AndroidViewModel(application) {
+
+    private val prefs = application.getSharedPreferences("flux_ai_prefs", Context.MODE_PRIVATE)
 
     private val _uiState = MutableStateFlow(DashboardState())
     val uiState: StateFlow<DashboardState> = _uiState.asStateFlow()
@@ -93,23 +108,95 @@ class EnsembleDashboardViewModel : ViewModel() {
     private var trainingJob: Job? = null
     private var scrapingJob: Job? = null
 
-    private val greetingPhrases = listOf(
-        "User 19, приступим!",
-        "Всегда готов",
-        "User 19, вам слово",
-        "Интерфейс настроен. Задайте вопрос!",
-        "Unified Neural Ensemble онлайн"
-    )
-
     init {
-        // Build initial thread metrics based on the thread allocations in config
+        // Load properties from SharedPreferences
+        val savedLang = prefs.getString("language", "ru") ?: "ru"
+        val savedNick = prefs.getString("nickname", "") ?: ""
+        val savedAvatarId = prefs.getInt("avatarId", 0)
+        val savedInterfaceName = prefs.getString("interfaceName", "Flux AI") ?: "Flux AI"
+        val savedRoutingMethod = prefs.getString("routingMethod", "Arbitrator MoE") ?: "Arbitrator MoE"
+        val savedLearningRate = prefs.getFloat("learningRate", 0.005f).toDouble()
+        
+        val savedRecentsStr = prefs.getString("recentPromptsStr", "") ?: ""
+        val savedRecents = if (savedRecentsStr.isEmpty()) emptyList() else savedRecentsStr.split("|||")
+
+        _uiState.update {
+            it.copy(
+                language = savedLang,
+                nickname = savedNick,
+                avatarId = savedAvatarId,
+                interfaceName = savedInterfaceName,
+                routingMethod = savedRoutingMethod,
+                learningRate = savedLearningRate,
+                recentPromptsList = savedRecents
+            )
+        }
+
         resetThreadMetrics()
         rotateGreetingPhrase()
     }
 
-    private fun rotateGreetingPhrase() {
-        val next = greetingPhrases[Random.nextInt(greetingPhrases.size)]
+    fun rotateGreetingPhrase() {
+        val currentLang = _uiState.value.language
+        val selectNick = _uiState.value.nickname.ifEmpty { if (currentLang == "ru") "Оператор" else "Operator" }
+        
+        val phrases = if (currentLang == "ru") {
+            listOf(
+                "$selectNick, приступим к работе!",
+                "Ядро Flux AI готово к запросам.",
+                "$selectNick, задайте ваш вопрос по локальным индексам.",
+                "Связующая матрица MoE в режиме ожидания.",
+                "Flux AI приветствует вас!"
+            )
+        } else {
+            listOf(
+                "Welcome, $selectNick. Ready to assist!",
+                "Flux AI Core status: ACTIVE.",
+                "Type your prompt to query MoE matrix, $selectNick.",
+                "Dynamic neural weights aligned and waiting.",
+                "Flux AI is online and localized."
+            )
+        }
+        val next = phrases[Random.nextInt(phrases.size)]
         _uiState.update { it.copy(activeGreetingPhrase = next) }
+    }
+
+    fun updateLanguage(lang: String) {
+        prefs.edit().putString("language", lang).apply()
+        _uiState.update { it.copy(language = lang) }
+        rotateGreetingPhrase()
+    }
+
+    fun updateProfile(nickname: String, avatarId: Int) {
+        prefs.edit().putString("nickname", nickname).putInt("avatarId", avatarId).apply()
+        _uiState.update { it.copy(nickname = nickname, avatarId = avatarId) }
+        rotateGreetingPhrase()
+    }
+
+    fun updateInterfaceName(name: String) {
+        prefs.edit().putString("interfaceName", name).apply()
+        _uiState.update { it.copy(interfaceName = name) }
+    }
+
+    fun updateRoutingMethod(method: String) {
+        prefs.edit().putString("routingMethod", method).apply()
+        _uiState.update { it.copy(routingMethod = method) }
+    }
+
+    fun updateLearningRate(lr: Double) {
+        prefs.edit().putFloat("learningRate", lr.toFloat()).apply()
+        _uiState.update { it.copy(learningRate = lr) }
+    }
+
+    fun saveRecentPrompt(prompt: String) {
+        val trimmed = prompt.trim()
+        if (trimmed.isEmpty()) return
+        val currentList = _uiState.value.recentPromptsList.toMutableList()
+        currentList.remove(trimmed)
+        currentList.add(0, trimmed)
+        val limited = currentList.take(20)
+        prefs.edit().putString("recentPromptsStr", limited.joinToString("|||")).apply()
+        _uiState.update { it.copy(recentPromptsList = limited) }
     }
 
     private fun resetThreadMetrics() {
@@ -197,6 +284,17 @@ class EnsembleDashboardViewModel : ViewModel() {
         }
     }
 
+    fun toggleMessageDetails(messageId: String) {
+        _uiState.update { state ->
+            val updated = state.chatHistory.map { msg ->
+                if (msg.id == messageId) {
+                    msg.copy(isDetailsExpanded = !msg.isDetailsExpanded)
+                } else msg
+            }
+            state.copy(chatHistory = updated)
+        }
+    }
+
     fun submitPrompt() {
         val prompt = _uiState.value.promptInput
         if (prompt.trim().isEmpty()) return
@@ -278,11 +376,11 @@ class EnsembleDashboardViewModel : ViewModel() {
     }
 
     /**
-     * Step B: Multi-threaded parallel trainer module.
+     * Step B: Multi-threaded parallel trainer module (Endless / Continuous Loop).
      */
     fun startParallelTraining() {
         if (_uiState.value.status != TaskStatus.READY && _uiState.value.scrapedDataCorpus.isEmpty()) {
-            addScrapedLog("ERROR", "No local dataset exists. Run the scraper first!")
+            addScrapedLog("ERROR", if (_uiState.value.language == "ru") "Локальный датасет отсутствует. Сначала запустите сбор!" else "No local dataset exists. Run the scraper first!")
             return
         }
 
@@ -293,7 +391,10 @@ class EnsembleDashboardViewModel : ViewModel() {
                     status = TaskStatus.TRAINING,
                     epoch = 0,
                     activeThreadsCount = 6,
-                    trainingLogs = listOf("Initializing Engine: Allocation of 6 Thread/Process Cores..."),
+                    trainingLogs = listOf(
+                        if (it.language == "ru") "Инициализация движка: выделение 6 ядер физического процессора..."
+                        else "Initializing Engine: Allocation of 6 Thread/Process Cores..."
+                    ),
                     lstmMetricHistory = emptyList(),
                     slmMetricHistory = emptyList(),
                     llmMetricHistory = emptyList()
@@ -302,86 +403,80 @@ class EnsembleDashboardViewModel : ViewModel() {
             resetThreadMetrics()
             delay(1000)
 
-            val totalEpochs = _uiState.value.maxEpochs
-            
-            coroutineScope {
-                launch {
-                    runModelTrainingLoop(
-                        modelType = ModelType.LSTM,
-                        threadIndices = listOf(0, 1),
-                        totalEpochs = totalEpochs,
-                        initialLoss = 2.8f,
-                        minLoss = 0.5f
-                    )
-                }
-
-                launch {
-                    runModelTrainingLoop(
-                        modelType = ModelType.SLM,
-                        threadIndices = listOf(2, 3),
-                        totalEpochs = totalEpochs,
-                        initialLoss = 2.4f,
-                        minLoss = 0.35f
-                    )
-                }
-
-                launch {
-                    runModelTrainingLoop(
-                        modelType = ModelType.LLM,
-                        threadIndices = listOf(4, 5),
-                        totalEpochs = totalEpochs,
-                        initialLoss = 3.2f,
-                        minLoss = 0.15f
-                    )
-                }
-
-                for (currentEpoch in 1..totalEpochs) {
-                    if (!isActive) break
-                    delay(120) // Accelerated epoch pace
-                    
-                    _uiState.update { currentState ->
-                        val updatedMetrics = currentState.threadMetrics.map { metric ->
-                            val noiseLoss = (Random.nextFloat() - 0.5f) * 0.04f
-                            val lossDecay = metric.currentLoss * 0.985f + noiseLoss
-                            val targetLoss = when (metric.modelType) {
-                                ModelType.LSTM -> 0.5f
-                                ModelType.SLM -> 0.35f
-                                ModelType.LLM -> 0.15f
-                                else -> 0.2f
-                            }
-                            val finalLoss = if (lossDecay < targetLoss) targetLoss else lossDecay
-                            val accuracyRise = 1.0f - (finalLoss / 3.5f) + (Random.nextFloat() * 0.02f)
-                            
-                            metric.copy(
-                                progress = currentEpoch.toFloat() / totalEpochs,
-                                currentLoss = String.format("%.4f", finalLoss).toFloat(),
-                                currentAccuracy = String.format("%.4f", if (accuracyRise > 0.99f) 0.99f else accuracyRise).toFloat(),
-                                throughput = "${Random.nextInt(120, 310)} tokens/s"
-                            )
+            var currentEpoch = 1
+            while (isActive && _uiState.value.status == TaskStatus.TRAINING) {
+                delay(400) // Beautiful smooth speed
+                
+                _uiState.update { currentState ->
+                    val updatedMetrics = currentState.threadMetrics.map { metric ->
+                        val noiseLoss = (Random.nextFloat() - 0.5f) * 0.03f
+                        val lossDecay = metric.currentLoss * 0.98f + noiseLoss
+                        val targetLoss = when (metric.modelType) {
+                            ModelType.LSTM -> 0.45f
+                            ModelType.SLM -> 0.32f
+                            ModelType.LLM -> 0.12f
+                            else -> 0.2f
                         }
-
-                        val lstmLoss = updatedMetrics.filter { it.modelType == ModelType.LSTM }.map { it.currentLoss }.average().toFloat()
-                        val slmLoss = updatedMetrics.filter { it.modelType == ModelType.SLM }.map { it.currentLoss }.average().toFloat()
-                        val llmLoss = updatedMetrics.filter { it.modelType == ModelType.LLM }.map { it.currentLoss }.average().toFloat()
-
-                        currentState.copy(
-                            epoch = currentEpoch,
-                            threadMetrics = updatedMetrics,
-                            lstmMetricHistory = currentState.lstmMetricHistory + lstmLoss,
-                            slmMetricHistory = currentState.slmMetricHistory + slmLoss,
-                            llmMetricHistory = currentState.llmMetricHistory + llmLoss,
-                            trainingLogs = getLogSampleForEpoch(currentEpoch, lstmLoss, slmLoss, llmLoss) + currentState.trainingLogs.take(50)
+                        val finalLoss = if (lossDecay < targetLoss) targetLoss + (Random.nextFloat() * 0.02f) else lossDecay
+                        val accuracyRise = 1.0f - (finalLoss / 3.5f) + (Random.nextFloat() * 0.015f)
+                        
+                        metric.copy(
+                            progress = ((currentEpoch * 10) % 100) / 100f, // Looping animated progress bar
+                            currentLoss = String.format("%.4f", finalLoss).toFloat(),
+                            currentAccuracy = String.format("%.4f", if (accuracyRise > 0.99f) 0.99f else accuracyRise).toFloat(),
+                            throughput = "${Random.nextInt(180, 420)} tokens/s"
                         )
                     }
-                }
-            }
 
-            _uiState.update {
-                it.copy(
-                    status = TaskStatus.READY,
-                    activeThreadsCount = 0
-                )
+                    val lstmLoss = updatedMetrics.filter { it.modelType == ModelType.LSTM }.map { it.currentLoss }.average().toFloat()
+                    val slmLoss = updatedMetrics.filter { it.modelType == ModelType.SLM }.map { it.currentLoss }.average().toFloat()
+                    val llmLoss = updatedMetrics.filter { it.modelType == ModelType.LLM }.map { it.currentLoss }.average().toFloat()
+
+                    // Cap history queues to last 120 points to avoid memory overhead
+                    val maxHistorySize = 120
+                    val newLstm = (currentState.lstmMetricHistory + lstmLoss).takeLast(maxHistorySize)
+                    val newSlm = (currentState.slmMetricHistory + slmLoss).takeLast(maxHistorySize)
+                    val newLlm = (currentState.llmMetricHistory + llmLoss).takeLast(maxHistorySize)
+
+                    currentState.copy(
+                        epoch = currentEpoch,
+                        threadMetrics = updatedMetrics,
+                        lstmMetricHistory = newLstm,
+                        slmMetricHistory = newSlm,
+                        llmMetricHistory = newLlm,
+                        trainingLogs = getLogSampleForEpoch(currentEpoch, lstmLoss, slmLoss, llmLoss) + currentState.trainingLogs.take(50)
+                    )
+                }
+                currentEpoch++
             }
+        }
+    }
+
+    fun stopParallelTraining() {
+        trainingJob?.cancel()
+        _uiState.update {
+            it.copy(
+                status = TaskStatus.READY,
+                activeThreadsCount = 0
+            )
+        }
+    }
+
+    private fun getLogSampleForEpoch(epoch: Int, lstmLoss: Float, slmLoss: Float, llmLoss: Float): List<String> {
+        val formatTime = java.text.SimpleDateFormat("mm:ss.SSS", java.util.Locale.getDefault()).format(java.util.Date())
+        val isRu = _uiState.value.language == "ru"
+        return if (isRu) {
+            listOf(
+                "[$formatTime] Эпоха $epoch -> Поток-1/2 (LSTM) Потери: ${String.format("%.4f", lstmLoss)} | Обновление весов",
+                "[$formatTime] Эпоха $epoch -> Поток-3/4 (SLM) Потери: ${String.format("%.4f", slmLoss)} | Синхронизация тензора",
+                "[$formatTime] Эпоха $epoch -> Поток-5/6 (LLM) Потери: ${String.format("%.4f", llmLoss)} | SwiGLU forward-backward завершен"
+            )
+        } else {
+            listOf(
+                "[$formatTime] Epoch $epoch -> Thread-1/2 (LSTM) Loss: ${String.format("%.4f", lstmLoss)} | Weight Matrix Synced",
+                "[$formatTime] Epoch $epoch -> Thread-3/4 (SLM) Loss: ${String.format("%.4f", slmLoss)} | Tensor Segment Aligned",
+                "[$formatTime] Epoch $epoch -> Thread-5/6 (LLM) Loss: ${String.format("%.4f", llmLoss)} | SwiGLU forward-backward ok"
+            )
         }
     }
 
@@ -398,16 +493,6 @@ class EnsembleDashboardViewModel : ViewModel() {
         }
     }
 
-    private fun getLogSampleForEpoch(epoch: Int, lstmLoss: Float, slmLoss: Float, llmLoss: Float): List<String> {
-        val formatTime = java.text.SimpleDateFormat("mm:ss.SSS", java.util.Locale.getDefault()).format(java.util.Date())
-        val maxE = _uiState.value.maxEpochs
-        return listOf(
-            "[$formatTime] Epoch $epoch/$maxE -> Thread-1/2 (LSTM) Loss: ${String.format("%.4f", lstmLoss)} | Shared Weight Update",
-            "[$formatTime] Epoch $epoch/$maxE -> Thread-3/4 (SLM) Loss: ${String.format("%.4f", slmLoss)} | Tensor Synced",
-            "[$formatTime] Epoch $epoch/$maxE -> Thread-5/6 (LLM) Loss: ${String.format("%.4f", llmLoss)} | SwiGLU forward backward complete"
-        )
-    }
-
     /**
      * Step C: Joint Model Gating and Ensemble Inference!
      */
@@ -418,6 +503,9 @@ class EnsembleDashboardViewModel : ViewModel() {
         val formatTime = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date())
         val userMsg = ChatMessage(isUser = true, text = prompt, timestamp = formatTime)
         
+        // Save to dynamic and persistent recent prompt list
+        saveRecentPrompt(prompt)
+
         _uiState.update { 
             it.copy(
                 ongoingInference = true,
@@ -437,55 +525,106 @@ class EnsembleDashboardViewModel : ViewModel() {
             // Dynamic logic checking selected model and options
             val selectedM = _uiState.value.selectedModel
             val reasoningL = _uiState.value.reasoningLevel
+            val isRu = _uiState.value.language == "ru"
 
             // Gating values (mixture of experts weighted gating coefficients)
             val finalWeights = when (selectedM) {
-                "3.1 Flash-Lite" -> listOf(0.40f, 0.45f, 0.15f)
-                "3.1 Pro" -> listOf(0.10f, 0.20f, 0.70f)
+                "Flux Lite", "3.1 Flash-Lite" -> listOf(0.40f, 0.45f, 0.15f)
+                "Flux Pro", "3.1 Pro" -> listOf(0.10f, 0.20f, 0.70f)
                 else -> listOf(0.22f, 0.31f, 0.47f)
             }
 
-            val textPool = when {
-                prompt.lowercase().contains("lstm") -> {
-                    "LSTM context layer resolved long-term temporal dependencies. " +
-                    "With output gating vector values: $hLstm, the MoE composite model maintains cell state memory, " +
-                    "producing sequence stability with high syntactic accuracy " +
-                    "guided by the LLM transformer's SwiGLU normalization projection. Selected architecture path is $selectedM with '$reasoningL' reasoning level."
+            val (cleanText, detailsText) = if (isRu) {
+                when {
+                    prompt.lowercase().contains("lstm") -> {
+                        Pair(
+                            "Локальный LSTM-слой успешно активирован для отслеживания долгосрочной памяти.",
+                            "Слой контекста LSTM разрешил долговременные временные зависимости. С вектором выходного вентиля: $hLstm, MoE-арбитратор удерживает долговременную память процесса. " +
+                            "Это гарантирует грамматическую стабильность в связке со SwiGLU нормализацией глубокого ядра LLM трансформера. " +
+                            "Направленная ветвь: $selectedM с уровнем рассуждений '$reasoningL'."
+                        )
+                    }
+                    prompt.lowercase().contains("transformer") || prompt.lowercase().contains("slm") || prompt.lowercase().contains("промпт") -> {
+                        Pair(
+                            "Малая языковая модель (SLM) построила семантическую карту для вашего запроса.",
+                            "Малая языковая модель (SLM) рассчитала коэффициенты матрицы внимания ($hSlm). В связке с глубоким трансформером LLM ($hLlm) " +
+                            "это гарантирует высочайшую релевантность и лаконичность ответа. Конфигурация модели: $selectedM, режим рассуждений: $reasoningL."
+                        )
+                    }
+                    prompt.lowercase().contains("обзор") || prompt.lowercase().contains("замен") -> {
+                        Pair(
+                            "Локальный ансамбль 3-в-1 превосходит облачные альтернативы по безопасности и скорости инференса.",
+                            "Сравнение архитектур: Крупные языковые модели предлагают глубокий контекст, но требуют высокой вычислительной мощности. " +
+                            "Наш локальный ансамбль 3-в-1 объединяет LSTM (вес 22%) для линейной стабильности, SLM (вес 31%) для быстрого разбора грамматики " +
+                            "и LLM Core (вес 47%) для многомерной лексической выразительности."
+                        )
+                    }
+                    else -> {
+                        Pair(
+                            "Запрос обработан синаптическим шлюзом ансамбля Flux AI.",
+                            "Объединяя репрезентации LSTM, SLM и LLM через взвешенный линейный слой-арбитратор MoE (смесь экспертов), модель Flux AI рассчитала " +
+                            "веса (${(finalWeights[0]*100).toInt()}% LSTM, ${(finalWeights[1]*100).toInt()}% SLM, ${(finalWeights[2]*100).toInt()}% LLM). " +
+                            "Интегрированное векторное пространство позволяет проводить локальный запуск без задержек сети! Архитектура: $selectedM, режим: $reasoningL."
+                        )
+                    }
                 }
-                prompt.lowercase().contains("transformer") || prompt.lowercase().contains("slm") || prompt.lowercase().contains("промпт") -> {
-                    "The Small Language Model (SLM) evaluated self-attention coordinates ($hSlm). " +
-                    "Combining parallel attention maps with the LLM Transformer ($hLlm) " +
-                    "establishes contextual relevance, providing a rich, fast local sequence response. Configured with $selectedM and reasoning option: $reasoningL."
-                }
-                prompt.lowercase().contains("обзор") || prompt.lowercase().contains("замен") -> {
-                    "Comparing architectures: Large LLM cores represent powerful contextual weights but suffer from high evaluation latencies. " +
-                    "Our local 3-in-1 Unified Neural Ensemble connects LSTM (22% weight) for linear stability, SLM (31% weight) for fast grammar framing, " +
-                    "and LLM Core (47% weight) for robust lexical expansion. Running in standard local mode, this replaces costly cloud-hosted models completely!"
-                }
-                else -> {
-                    "By unifying LSTM, SLM, and LLM representations via a unified linear gating layer, the 3-in-1 Arbitrator " +
-                    "calculates cross-neural weights (${(finalWeights[0]*100).toInt()}% LSTM, ${(finalWeights[1]*100).toInt()}% SLM, ${(finalWeights[2]*100).toInt()}% LLM). " +
-                    "The unified vector space produces optimized local feedback without remote server latency. Active model: $selectedM, Reasoning level: $reasoningL."
+            } else {
+                when {
+                    prompt.lowercase().contains("lstm") -> {
+                        Pair(
+                            "The local LSTM context layer has been activated for sequential memory tracking.",
+                            "LSTM context layer resolved long-term temporal dependencies. " +
+                            "With output gating vector values: $hLstm, the MoE composite model maintains cell state memory, " +
+                            "producing sequence stability with high syntactic accuracy " +
+                            "guided by the LLM transformer's SwiGLU normalization projection. Selected architecture path is $selectedM with '$reasoningL' reasoning level."
+                        )
+                    }
+                    prompt.lowercase().contains("transformer") || prompt.lowercase().contains("slm") -> {
+                        Pair(
+                            "The Small Language Model (SLM) processed attention matrices for your query.",
+                            "The Small Language Model (SLM) evaluated self-attention coordinates ($hSlm). " +
+                            "Combining parallel attention maps with the LLM Transformer ($hLlm) " +
+                            "establishes contextual relevance, providing a rich, fast local sequence response. Configured with $selectedM and reasoning option: $reasoningL."
+                        )
+                    }
+                    prompt.lowercase().contains("review") || prompt.lowercase().contains("compare") -> {
+                        Pair(
+                            "Unified Local Ensemble provides sub-millisecond local latency compared to cloud APIs.",
+                            "Comparing architectures: Large LLM cores represent powerful contextual weights but suffer from high evaluation latencies. " +
+                            "Our local 3-in-1 Unified Neural Ensemble connects LSTM (22% weight) for linear stability, SLM (31% weight) for fast grammar framing, " +
+                            "and LLM Core (47% weight) for robust lexical expansion. Running in standard local mode, this replaces costly cloud-hosted models completely!"
+                        )
+                    }
+                    else -> {
+                        Pair(
+                            "Query successfully processed by the Flux AI MoE synaptic gateway.",
+                            "By unifying LSTM, SLM, and LLM representations via a unified linear gating layer, the 3-in-1 Arbitrator " +
+                            "calculates cross-neural weights (${(finalWeights[0]*100).toInt()}% LSTM, ${(finalWeights[1]*100).toInt()}% SLM, ${(finalWeights[2]*100).toInt()}% LLM). " +
+                            "The unified vector space produces optimized local feedback without remote server latency. Active model: $selectedM, Reasoning level: $reasoningL."
+                        )
+                    }
                 }
             }
-
-            val resultOutput = EnsembleOutput(
-                prompt = prompt,
-                generatedText = textPool,
-                hLstm = hLstm,
-                hSlm = hSlm,
-                hLlm = hLlm,
-                finalWeights = finalWeights,
-                targetTokensCount = textPool.split(" ").size
-            )
-
-            val replyMsg = ChatMessage(
-                isUser = false,
-                text = textPool,
-                timestamp = formatTime,
-                result = resultOutput,
-                isTelemetryExpanded = true // Auto expand to show off the cool technology!
-            )
+ 
+             val resultOutput = EnsembleOutput(
+                 prompt = prompt,
+                 generatedText = cleanText,
+                 hLstm = hLstm,
+                 hSlm = hSlm,
+                 hLlm = hLlm,
+                 finalWeights = finalWeights,
+                 targetTokensCount = cleanText.split(" ").size
+             )
+ 
+             val replyMsg = ChatMessage(
+                 isUser = false,
+                 text = cleanText,
+                 detailsText = detailsText,
+                 timestamp = formatTime,
+                 result = resultOutput,
+                 isTelemetryExpanded = false,
+                 isDetailsExpanded = false
+             )
 
             _uiState.update {
                 it.copy(
