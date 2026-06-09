@@ -1360,7 +1360,7 @@ fun SystemTelemetryHub(
                                     containerColor = if (state.language == "ru") GeminiBlueAccent else GeminiPillBase,
                                     contentColor = GeminiTextLight
                                 ),
-                                shape = RoundedCornerShape(8.dp),
+                                shape = CircleShape,
                                 modifier = Modifier.weight(1f)
                             ) {
                                 Text("Русский 🇷🇺", style = LocalCyberTypography.mono, fontSize = 11.sp)
@@ -1371,7 +1371,7 @@ fun SystemTelemetryHub(
                                     containerColor = if (state.language == "en") GeminiBlueAccent else GeminiPillBase,
                                     contentColor = GeminiTextLight
                                 ),
-                                shape = RoundedCornerShape(8.dp),
+                                shape = CircleShape,
                                 modifier = Modifier.weight(1f)
                             ) {
                                 Text("English 🇬🇧", style = LocalCyberTypography.mono, fontSize = 11.sp)
@@ -1418,6 +1418,34 @@ fun SystemTelemetryHub(
                                     Text(entry.second, fontSize = 17.sp)
                                 }
                             }
+                        }
+                    }
+
+                    // Crash test button
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            text = if (state.language == "ru") "ТЕСТИРОВАНИЕ СБОЕВ" else "CRASH INTERCEPTION TESTING",
+                            style = LocalCyberTypography.mono,
+                            fontSize = 11.sp,
+                            color = GeminiTextMuted
+                        )
+                        Button(
+                            onClick = { 
+                                throw RuntimeException("Тестовый сбой: Ручной запуск эмуляции ошибки оператором.") 
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFFD32F2F),
+                                contentColor = Color.White
+                            ),
+                            shape = CircleShape,
+                            modifier = Modifier.fillMaxWidth().height(42.dp)
+                        ) {
+                            Text(
+                                text = if (state.language == "ru") "Сбой симуляции (Краш-тест)" else "Trigger Crash Test",
+                                style = LocalCyberTypography.mono,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 }
@@ -1715,7 +1743,7 @@ fun SystemTelemetryHub(
                             onClick = { viewModel.startUrlScraping() },
                             enabled = state.status != TaskStatus.CRAWLING && state.status != TaskStatus.TRAINING,
                             colors = ButtonDefaults.buttonColors(containerColor = GeminiGreenAccent, contentColor = Color.Black),
-                            shape = RoundedCornerShape(8.dp),
+                            shape = CircleShape,
                             modifier = Modifier.testTag("scrape_data_button")
                         ) {
                             Text(
@@ -1812,7 +1840,7 @@ fun SystemTelemetryHub(
                                 containerColor = if (state.status == TaskStatus.TRAINING) Color(0xFFE91E63) else GeminiBlueAccent,
                                 contentColor = Color.White
                             ),
-                            shape = RoundedCornerShape(8.dp),
+                            shape = CircleShape,
                             modifier = Modifier.testTag("train_ensemble_button")
                         ) {
                             Text(
@@ -2181,7 +2209,7 @@ fun OnboardingSetupScreen(
                             viewModel.updateProfile(finalNick, finalAvatarId)
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = GeminiBlueAccent, contentColor = Color.White),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = CircleShape,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(48.dp)
