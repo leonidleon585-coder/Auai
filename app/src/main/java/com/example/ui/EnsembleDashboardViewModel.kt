@@ -422,8 +422,8 @@ class EnsembleDashboardViewModel(application: Application) : AndroidViewModel(ap
                         
                         metric.copy(
                             progress = ((currentEpoch * 10) % 100) / 100f, // Looping animated progress bar
-                            currentLoss = String.format("%.4f", finalLoss).toFloat(),
-                            currentAccuracy = String.format("%.4f", if (accuracyRise > 0.99f) 0.99f else accuracyRise).toFloat(),
+                            currentLoss = String.format(java.util.Locale.US, "%.4f", finalLoss).toFloat(),
+                            currentAccuracy = String.format(java.util.Locale.US, "%.4f", if (accuracyRise > 0.99f) 0.99f else accuracyRise).toFloat(),
                             throughput = "${Random.nextInt(180, 420)} tokens/s"
                         )
                     }
@@ -518,9 +518,9 @@ class EnsembleDashboardViewModel(application: Application) : AndroidViewModel(ap
             delay(1200) // Simulating calculations and feedforward sequence
 
             // Generate 8-dimensional hidden states
-            val hLstm = List(8) { String.format("%.3f", Random.nextDouble(-1.0, 1.0)).toFloat() }
-            val hSlm = List(8) { String.format("%.3f", Random.nextDouble(-1.0, 1.0)).toFloat() }
-            val hLlm = List(8) { String.format("%.3f", Random.nextDouble(-1.0, 1.0)).toFloat() }
+            val hLstm = List(8) { String.format(java.util.Locale.US, "%.3f", Random.nextDouble(-1.0, 1.0)).toFloat() }
+            val hSlm = List(8) { String.format(java.util.Locale.US, "%.3f", Random.nextDouble(-1.0, 1.0)).toFloat() }
+            val hLlm = List(8) { String.format(java.util.Locale.US, "%.3f", Random.nextDouble(-1.0, 1.0)).toFloat() }
 
             // Dynamic logic checking selected model and options
             val selectedM = _uiState.value.selectedModel
