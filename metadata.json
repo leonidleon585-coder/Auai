@@ -1,0 +1,6 @@
+{
+  "name": "Unified Neural Ensemble",
+  "description": "A high-fidelity 3-in-1 local neural ensemble app that implements a real-time LSTM, SLM, and advanced LLM with SwiGLU, RoPE, and MoE Arbitrator.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
