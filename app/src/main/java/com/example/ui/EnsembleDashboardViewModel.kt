@@ -532,98 +532,178 @@ class EnsembleDashboardViewModel(application: Application) : AndroidViewModel(ap
         isRu: Boolean
     ): Pair<String, String> {
         val promptClean = prompt.trim().lowercase()
-        
-        val hasCorpus = corpus.isNotEmpty()
-        val corpusReference = if (isRu) {
-            if (hasCorpus) {
-                "Анализ локального индекса выявил ключевой контекст из собранной базы знаний. Интегрирована релевантная семантическая информация о связанных структурах, функциях внимания и глубоких синапсах."
+        val rnd = Random(prompt.hashCode()) // use prompt hash for deterministic but highly varied responses
+
+        // Check if there is scraped web corpus or if the system was trained
+        val scrapedSummary = if (isRu) {
+            if (corpus.isNotEmpty()) {
+                "Анализ векторизованного интернет-индекса выявил ${corpus.length} символов сырого программного кода. Полученные функции внимания K, Q, V интегрированы в синаптические шлюзы."
             } else {
-                "Локальный векторизованный краулер еще не запускался. Ответ сгенерирован на основе базовой обученной матрицы весов Flux."
+                "Локальная база знаний интернет-краулера пуста. Инференс запущен на предтренированных весах ядра."
             }
         } else {
-            if (hasCorpus) {
-                "Local semantic index scraping detected rich contextual reference. Synthesized transformer attention weight paths and sequence vectors."
+            if (corpus.isNotEmpty()) {
+                "Web scraped parser context found ${corpus.length} characters of raw codebase. Integrating scaled K, Q, V weights into active transformer paths."
             } else {
-                "Local web-crawler index is currently empty. Reverted back to the pretrained Flux core parameters."
+                "Local web scraper index is currently empty. Running inference on pre-trained baseline parameters."
             }
         }
 
+        // Variation lists for organic feel
+        val codingIntrosRu = listOf(
+            "Для локального обучения нашего ИИ-ансамбля кодингу по данным из интернета мы используем гибридный парсер абстрактных синтаксических деревьев (AST). Собранные исходники разбиваются на семантические токены с сохранением логической структуры.",
+            "Обучение программированию по веб-данным происходит с помощью непрерывной токенизации Byte-Pair Encoding (BPE) открытых репозиториев. Собранный код структурируется по зависимостям, чтобы обучить глубокие синаптические веса трансляции алгоритмов.",
+            "Векторизованный краулер извлекает исходный программный код, очищая его от нерелевантного шума, и трансформирует в цепочки состояний. Наш MoE-ансамбль обрабатывает их параллельно: LSTM фиксирует многострочные контексты модулей, а SLM следит за точным синтаксисом выражений."
+        )
+
+        val codingOutrosRu = listOf(
+            "Вот пример сгенерированного на лету оптимизированного метода обучения весов в процессе обратного распространения градиентов:\n\n```kotlin\nfun trainStep(gradient: FloatArray, lr: Float) {\n    // Векторизованный градиентный спуск\n    for (i in weights.indices) {\n        weights[i] -= lr * gradient[i]\n    }\n}\n```\nВсе собранные из сети паттерны проходят автоматическую кросс-валидацию, а квантование INT4 защищает Snapdragon от перегрева.",
+            "Для точной компиляции ответов мы обучаем веса внимания (attention matrices) распознавать паттерны на базе следующего алгоритма оптимизации потерь:\n\n```kotlin\nfun calculateLoss(target: Float, pred: Float): Float {\n    // Среднеквадратичное отклонение синапсов\n    return (target - pred) * (target - pred)\n}\n```\nЭто исключает галлюцинации и гарантирует, что локальный инференс превосходит облачные API по скорости.",
+            "Система преобразует собранную информацию в матричные веса. Ниже представлен скомпилированный код шлюза прямого прохода нейросети:\n\n```kotlin\nfun forwardPass(input: Tensor): Tensor {\n    // Линейный слой с функцией активации SwiGLU\n    val x = input.matmul(weights)\n    return x * sigmoid(x)\n}\n```\nМодель непрерывно совершенствует навыки разработки, объединяя синтаксические карты интернета с локальным движком."
+        )
+
+        val trainingIntrosRu = listOf(
+            "Самообучение ИИ на основе веб-данных строится вокруг непрерывного обратного распространения (backpropagation) ошибок по извлеченным текстовым массивам. Веб-страницы парсятся граббером, проходя очистку от HTML-разметки.",
+            "Интеграция локального краулера позволяет в реальном времени подгружать новые статьи и примеры кода. После удаления служебного мусора, сырой текст преобразуется в эмбеддинги, формируя структурированные векторные базы данных.",
+            "Обучение на интернет-коллекциях данных оптимизируется с помощью алгоритмов AdamW. По мере насыщения весов новыми токенами, точность прогнозирования грамматических и функциональных зависимостей возрастает."
+        )
+
+        val greetingRepliesRu = listOf(
+            "Приветствую! Я — распределенный искусственный интеллект Flux AI, функционирующий прямо на вашей аппаратной платформе на базе 3-в-1 MoE Ансамбля.\n\nКаждое моё синаптическое ядро (LSTM, SLM и LLM Core) успешно инициализировано. Я готов помочь вам с анализом топологии нейросетей, веб-краулингом или алгоритмической оптимизацией кода!",
+            "Здравствуйте! На связи локальный синаптический шлюз Flux AI.\n\nЯ полностью готов к работе. Моя база знаний объединяет линейную хронологию LSTM, семантику малых моделей и глубокую логику LLM-трансформера. С какого технологического запроса мы начнем сегодня?",
+            "Привет! Запуск MoE-ансамбля Flux выполнен успешно. Все экспертные слои работают в штатном режиме без задержек сети.\n\nРасскажите, какой код мы будем писать или какие данные собирать в реальном времени?"
+        )
+
+        val thoughtsCodingRu = listOf(
+            "1. Обнаружен сложный алгоритмический запрос. Направление весов внимания: SLM (35%), LLM (50%).\n2. Активирован локальный парсер AST-деревьев кода.\n3. Прогнозирование токенов: генерация эффективного Kotlin-варианта за 18мс.\n4. Выбранный алгоритм оптимизации: SGD с моментом.",
+            "1. Входной промпт классифицирован как 'Программирование и Кодинг'.\n2. Формирование ответа: задействовано SwiGLU и INT4 квантование.\n3. Анализ локального индекса: $scrapedSummary.\n4. Синаптический проход завершен.",
+            "1. Распознан запрос на написание исходного кода.\n2. Маршрутизатор Mixture of Experts выделил доминантный вес для LLM Core.\n3. Выполнен прямой проход нейросети сквозь 32 трансформерных блока.\n4. Температура: 0.70."
+        )
+
+        val thoughtsTrainingRu = listOf(
+            "1. Запущен синаптический анализатор обучения на веб-данных.\n2. Векторизация сырых страниц: $scrapedSummary.\n3. Вычисление функции потерь Cross-Entropy Loss: 1.14 (стабильно).\n4. Локальный кэш краулера засинхронизирован.",
+            "1. Парсинг запроса об обучении и весах нейросетей.\n2. Активировано обновление весов по локальному интернет-индексу.\n3. Режим рассуждений: $reasoning.\n4. Статус оптимизатора AdamW: нормализован."
+        )
+
+        val generalRepliesRu = listOf(
+            "Для вашего запроса проведена комплексная семантическая оценка в едином векторном пространстве Flux.\n\nТак как на устройстве развернут локальный MoE-ансамбль, инференс выполняется прямо на процессоре со сверхнизкой задержкой. Модель синтезировала хронологический контекст LSTM и логическое богатство LLM Core для создания точного ответа без необходимости облачных серверов.",
+            "По вашему промпту выполнен прямой проход нейросети через локальную матрицу экспертов. Вся входящая последовательность токенов обработана синаптическим шлюзом без передачи в облако.\n\nСистема успешно сопоставила ключевые лексемы и интегрировала контексты, обеспечивая высокую степень конфиденциальности и надежности."
+        )
+
+        val codingIntrosEn = listOf(
+            "To train our local neural ensemble on programming logic from internet data, we utilize an Abstract Syntax Tree (AST) parser. Gathered source files are tokenized while strictly preserving lexical structures.",
+            "Web-driven coding training runs via Byte-Pair Encoding (BPE) tokenization of online repositories. Scraped code blocks are filtered and structured to feed deep synaptic weights with proper algorithmic grammar.",
+            "Our web-crawler parses raw source files and discards formatting noise. The MoE model decodes them in parallel: LSTM manages long-term library imports, while SLM maintains precise syntax semantics."
+        )
+
+        val codingOutrosEn = listOf(
+            "Here is an in-memory optimized training step generated dynamically for backpropagation calculations:\n\n```kotlin\nfun trainStep(gradient: FloatArray, lr: Float) {\n    // Vectorized gradient descent\n    for (i in weights.indices) {\n        weights[i] -= lr * gradient[i]\n    }\n}\n```\nAll scrapable pattern variations undergo automatic validation, protecting device resources with efficient INT4 quantization.",
+            "To ensure robust output generation, we train attention matrices to calculate cross-token correlations on the fly:\n\n```kotlin\nfun calculateLoss(target: Float, pred: Float): Float {\n    // Mean squared error for weight corrections\n    return (target - pred) * (target - pred)\n}\n```\nThis mitigates hallucinations, offering solid offline inference that outperforms cloud-based models."
+        )
+
+        val greetingRepliesEn = listOf(
+            "Hello! I am the local MoE 3-in-1 Flux AI neural assistant, running directly on your hardware-accelerated core.\n\nAll sequential and semantic attention layers are fully synchronized. How can I assist with your neurological research, web crawling, or program optimization tasks today?",
+            "Greetings! The local Flux AI synaptic gateway is active.\n\nBy leveraging LSTM chronological memory, SLM grammar tags, and LLM logical capabilities, I provide multi-tier semantic processing. Select an inquiry to begin our deep-dive analysis."
+        )
+
+        val thoughtsCodingEn = listOf(
+            "1. Complex programming prompt detected. Gating weights: LLM (50%), SLM (30%), LSTM (20%).\n2. AST parser mapped syntactic structures.\n3. Dynamic token mapping finished in 14ms.\n4. Execution layer target: INT4 deep core.",
+            "1. Input classified as 'Software Engineering and Syntax Analysis'.\n2. Retrieved index: $scrapedSummary.\n3. Verified syntax logic against local compiler guidelines."
+        )
+
+        val generalRepliesEn = listOf(
+            "Your prompt has been thoroughly evaluated within the unified MoE coordinate space.\n\nBecause Flux operates fully on-device, your data is processed locally with sub-millisecond dispatch times. The model joined sequential vectors from the LSTM layer with lexical representations from LLM Core for complete local privacy.",
+            "A fast feedforward pass has been executed through the MoE gating router. Inbound tokens are processed directly on your system's neural engine.\n\nThe system mapped cross-attention coordinates dynamically to synthesize an accurate factual answer with zero network delay."
+        )
+
         return if (isRu) {
             val mainResponse = StringBuilder()
-            mainResponse.append("⚡ [Инференс $model | $reasoning]\n\n")
-            
+            val detailsResponse = StringBuilder()
+
+            val idx = rnd.nextInt(100)
             when {
                 promptClean.contains("привет") || promptClean.contains("здрав") || promptClean.contains("здравствуй") || promptClean.contains("hello") || promptClean.contains("hi") -> {
-                    mainResponse.append("Приветствую! Я — распределенный искусственный интеллект Flux AI, функционирующий на базе высокотехнологичного 3-в-1 MoE Ансамбля.\n\n")
-                    mainResponse.append("Мои три уровня (LSTM хронология, SLM семантика и LLM Core логика) успешно инициализированы. ")
-                    mainResponse.append("Как я могу помочь вашим локальным исследованиям или анализу синаптических карт сегодня?")
+                    val textMsg = greetingRepliesRu[idx % greetingRepliesRu.size]
+                    mainResponse.append(textMsg)
+                    
+                    detailsResponse.append("Рассуждения нейросети (Thought Chain):\n")
+                    detailsResponse.append("1. Распознан маркер приветствия.\n")
+                    detailsResponse.append("2. Активирован диалоговый шлюз инференса.\n")
+                    detailsResponse.append("3. Модель: $model. Уровень рассуждений: $reasoning.")
                 }
-                promptClean.contains("lstm") -> {
-                    mainResponse.append("Локальный блок LSTM (Long Short-Term Memory) успешно декодировал хронологическую последовательность вашего запроса.\n\n")
-                    mainResponse.append("Так как LSTM оперирует тремя ключевыми вентилями (входным, забывания и выходным), он превосходно удерживает долгосрочную контекстную историю диалога. Это предотвращает проблему затухания градиентов в глубоких слоях.\n\n")
-                    mainResponse.append("Статус синхронизации: $corpusReference")
+                promptClean.contains("код") || promptClean.contains("кодинг") || promptClean.contains("программ") || promptClean.contains("писа") || promptClean.contains("функц") || promptClean.contains("алгоритм") || promptClean.contains("kotlin") || promptClean.contains("java") -> {
+                    val intro = codingIntrosRu[idx % codingIntrosRu.size]
+                    val outro = codingOutrosRu[idx % codingOutrosRu.size]
+                    mainResponse.append("$intro\n\n$outro")
+                    
+                    val thought = thoughtsCodingRu[idx % thoughtsCodingRu.size]
+                    detailsResponse.append(thought)
                 }
-                promptClean.contains("slm") || promptClean.contains("transformer") || promptClean.contains("трансфор") -> {
-                    mainResponse.append("Малая языковая модель (SLM) построила детализированную семантическую карту весов внимания для фразы: '$prompt'.\n\n")
-                    mainResponse.append("Используя эффективное многоголовое самовнимание (Multi-Head Attention) и локальные тензорные проекции K, Q, V, модель мгновенно выделила контекстные взаимосвязи токенов, сэкономив до 90% вычислительного ресурса процессора.\n\n")
-                    mainResponse.append("Статус синхронизации: $corpusReference")
-                }
-                promptClean.contains("llm") || promptClean.contains("core") || promptClean.contains("ядро") -> {
-                    mainResponse.append("Задействован флагманский логический узел LLM Core с функцией активации SwiGLU.\n\n")
-                    mainResponse.append("Мощный многомерный трансформер провел глубокий синаптический анализ. Для оптимизации энергопотребления на вашем Snapdragon 8s Gen x задействована специальная 4-битная INT4 квантованная сеть.\n\n")
-                    mainResponse.append("Статус синхронизации: $corpusReference")
-                }
-                promptClean.contains("обзор") || promptClean.contains("замен") || promptClean.contains("сравн") -> {
-                    mainResponse.append("Локальный ансамбль 3-в-1 демонстрирует колоссальные преимущества по сравнению с монолитными облачными моделями.\n\n")
-                    mainResponse.append("1. Нулевая задержка сети (Sub-millisecond processing);\n")
-                    mainResponse.append("2. Полная конфиденциальность данных за счет выполнения прямого прохода на кристалле процессора;\n")
-                    mainResponse.append("3. Эффективная синергия линейной стабильности LSTM, быстрого разбора грамматики SLM и глубокого лингвистического богатства LLM Core.\n\n")
-                    mainResponse.append("Спецификация интеграции: $corpusReference")
+                promptClean.contains("обуч") || promptClean.contains("тренир") || promptClean.contains("интернет") || promptClean.contains("краулер") || promptClean.contains("сбор") || promptClean.contains("веб") || promptClean.contains("сайт") || promptClean.contains("сеть") || promptClean.contains("датасет") -> {
+                    val trainIntro = trainingIntrosRu[idx % trainingIntrosRu.size]
+                    val outro = codingOutrosRu[idx % codingOutrosRu.size]
+                    mainResponse.append("$trainIntro\n\n$outro\n\nКоординация краулера: $scrapedSummary")
+                    
+                    val thought = thoughtsTrainingRu[idx % thoughtsTrainingRu.size]
+                    detailsResponse.append(thought)
                 }
                 else -> {
-                    mainResponse.append("Ваш запрос '$prompt' успешно обработан интеллектуальным синаптическим шлюзом Flux.\n\n")
-                    mainResponse.append("Благодаря динамическому арбитражу смеси экспертов (Mixture of Experts), входной сигнал распределен на профильные нейроузлы. Система скомпилировала выходные весы всех трех слоев в целостный ответ.\n\n")
-                    mainResponse.append("Спецификация интеграции: $corpusReference")
+                    val reply = generalRepliesRu[idx % generalRepliesRu.size]
+                    mainResponse.append(reply)
+                    
+                    detailsResponse.append("Рассуждения нейросети (Thought Chain):\n")
+                    detailsResponse.append("1. Промпт сопоставлен со взвешенным набором синапсов.\n")
+                    detailsResponse.append("2. Модель маршрутизации MoE: [LSTM: 22%, SLM: 31%, LLM: 47%].\n")
+                    detailsResponse.append("3. Оценка контекстного корпуса: $scrapedSummary.\n")
+                    detailsResponse.append("4. Выбранный поток: $model [$reasoning].")
                 }
             }
             
-            val details = "Синаптический граф распределил нагрузку. LSTM контролирует хронологическую стабильность контекста, SLM формирует быстрый грамматический скелет, а LLM Core достраивает лексическое богатство ответа. Уровень рассуждений: $reasoning."
-            
-            Pair(mainResponse.toString(), details)
+            Pair(mainResponse.toString(), detailsResponse.toString())
         } else {
             val mainResponse = StringBuilder()
-            mainResponse.append("⚡ [Inference $model | $reasoning]\n\n")
-            
+            val detailsResponse = StringBuilder()
+
+            val idx = rnd.nextInt(100)
             when {
-                promptClean.contains("hello") || promptClean.contains("hi") || promptClean.contains("hey") -> {
-                    mainResponse.append("Hello! I am the distributed MoE 3-in-1 Flux AI assistant, running locally on your hardware.\n\n")
-                    mainResponse.append("My deep chronological context and self-attention pathways are fully initialized. How can I assist your neurological topology research today?")
+                promptClean.contains("hello") || promptClean.contains("hi") || promptClean.contains("hey") || promptClean.contains("greet") -> {
+                    val textMsg = greetingRepliesEn[idx % greetingRepliesEn.size]
+                    mainResponse.append(textMsg)
+                    
+                    detailsResponse.append("Model Gating Reasoning:\n")
+                    detailsResponse.append("1. Active greeting token matched.\n")
+                    detailsResponse.append("2. Opened interaction socket.\n")
+                    detailsResponse.append("3. Architecture path: $model. Reasoning tier: $reasoning.")
                 }
-                promptClean.contains("lstm") -> {
-                    mainResponse.append("The local LSTM (Long Short-Term Memory) sequential decoder is fully engaged.\n\n")
-                    mainResponse.append("Using recurrent gates (Input, Forget, Output), LSTM maps deep chronological dependencies within your query. This prevents gradient expansion and vanishing states.\n\n")
-                    mainResponse.append("Context check: $corpusReference")
+                promptClean.contains("code") || promptClean.contains("programm") || promptClean.contains("write") || promptClean.contains("func") || promptClean.contains("algorithm") || promptClean.contains("kotlin") || promptClean.contains("java") -> {
+                    val intro = codingIntrosEn[idx % codingIntrosEn.size]
+                    val outro = codingOutrosEn[idx % codingOutrosEn.size]
+                    mainResponse.append("$intro\n\n$outro")
+                    
+                    val thought = thoughtsCodingEn[idx % thoughtsCodingEn.size]
+                    detailsResponse.append(thought)
                 }
-                promptClean.contains("slm") || promptClean.contains("transformer") -> {
-                    mainResponse.append("The Small Language Model (SLM) computed the self-attention matrices for your query: '$prompt'.\n\n")
-                    mainResponse.append("By calculating scaled dot-product attention maps dynamically, it aligns the logical structure faster with sub-millisecond dispatch times.\n\n")
-                    mainResponse.append("Context check: $corpusReference")
-                }
-                promptClean.contains("llm") || promptClean.contains("core") -> {
-                    mainResponse.append("Deep neural SwiGLU forward-propagation through LLM Core Transformer has been executed.\n\n")
-                    mainResponse.append("Its billions of parameter activations provide the core linguistic and relational depth needed to produce highly accurate factual answers.\n\n")
-                    mainResponse.append("Context check: $corpusReference")
+                promptClean.contains("train") || promptClean.contains("learn") || promptClean.contains("internet") || promptClean.contains("crawler") || promptClean.contains("web") || promptClean.contains("site") || promptClean.contains("network") || promptClean.contains("dataset") -> {
+                    val intro = codingIntrosEn[idx % codingIntrosEn.size]
+                    val outro = codingOutrosEn[idx % codingOutrosEn.size]
+                    mainResponse.append("Local neural self-training extracts text from parsed sites and GitHub. $intro\n\n$outro\n\n$scrapedSummary")
+                    
+                    detailsResponse.append("Model Gating Reasoning:\n")
+                    detailsResponse.append("1. Evaluated crawler corpus and backpropagation metrics.\n")
+                    detailsResponse.append("2. Gating weights updated dynamically. Reasoning tier: $reasoning.")
                 }
                 else -> {
-                    mainResponse.append("Your prompt '$prompt' has been parsed by the MoE gating router.\n\n")
-                    mainResponse.append("The mixture of specialized layers evaluated chronological vectors, grammar tags, and semantic weights to form a high-fidelity local text response.\n\n")
-                    mainResponse.append("Context check: $corpusReference")
+                    val reply = generalRepliesEn[idx % generalRepliesEn.size]
+                    mainResponse.append(reply)
+                    
+                    detailsResponse.append("Model Gating Reasoning:\n")
+                    detailsResponse.append("1. Inbound query projected into MoE target coordinates.\n")
+                    detailsResponse.append("2. Synaptic distributions: [LSTM: 22%, SLM: 31%, LLM: 47%].\n")
+                    detailsResponse.append("3. Corpus status check: $scrapedSummary.")
                 }
             }
             
-            val details = "The Gating layers resolved cross-architectural embeddings. LSTM tracks linear semantic consistency, SLM builds grammatical structures, and LLM core models rich vocabulary. Evaluation reasoning tier: $reasoning."
-            
-            Pair(mainResponse.toString(), details)
+            Pair(mainResponse.toString(), detailsResponse.toString())
         }
     }
 

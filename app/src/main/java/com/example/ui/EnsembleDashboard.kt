@@ -183,9 +183,9 @@ fun EnsembleDashboard(
 
         val particleProgress by infiniteTransition.animateFloat(
             initialValue = 0f,
-            targetValue = 1f,
+            targetValue = 1000f,
             animationSpec = infiniteRepeatable(
-                animation = tween(4000, easing = LinearEasing),
+                animation = tween(4000000, easing = LinearEasing),
                 repeatMode = RepeatMode.Restart
             ),
             label = "particle_progress"
@@ -613,13 +613,15 @@ fun EnsembleDashboard(
                         }
                     }
             ) {
-                // Determine our viewing layer
-                if (state.selectedTab == 0) {
-                    // TAB 0: CONVERSATIONAL CHAT (RECREATING THE MAIN SCREEN SCENARIOS)
-                    ChatContainer(state, viewModel)
-                } else {
-                    // TAB 1: ADVANCED MACHINE LEARNING SYSTEM PANEL (SCRAPER & 6-THREAD TRAINER CORES)
-                    SystemTelemetryHub(state, viewModel)
+                // Determine our viewing layer with a beautiful crossfade transition
+                Crossfade(targetState = state.selectedTab, label = "tab_transition", animationSpec = tween(450)) { tab ->
+                    if (tab == 0) {
+                        // TAB 0: CONVERSATIONAL CHAT (RECREATING THE MAIN SCREEN SCENARIOS)
+                        ChatContainer(state, viewModel)
+                    } else {
+                        // TAB 1: ADVANCED MACHINE LEARNING SYSTEM PANEL (SCRAPER & 6-THREAD TRAINER CORES)
+                        SystemTelemetryHub(state, viewModel)
+                    }
                 }
 
                 // FLOATING MODEL DROPDOWN ACCORDION OVERLAY SHEET (SCREEN 1)
@@ -844,7 +846,11 @@ fun ChatContainer(
                 .weight(1f),
             contentAlignment = Alignment.Center
         ) {
-            if (state.chatHistory.isEmpty()) {
+            androidx.compose.animation.AnimatedVisibility(
+                visible = state.chatHistory.isEmpty(),
+                enter = fadeIn(animationSpec = tween(500)) + scaleIn(initialScale = 0.85f, animationSpec = tween(500)),
+                exit = fadeOut(animationSpec = tween(300))
+            ) {
                 // Pristine State (Screens 3, 4, 5)
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -860,7 +866,13 @@ fun ChatContainer(
                         textAlign = TextAlign.Center
                     )
                 }
-            } else {
+            }
+
+            androidx.compose.animation.AnimatedVisibility(
+                visible = state.chatHistory.isNotEmpty(),
+                enter = fadeIn(animationSpec = tween(400)),
+                exit = fadeOut(animationSpec = tween(200))
+            ) {
                 // Conversational Bubbles List
                 LazyColumn(
                     state = listState,
@@ -868,16 +880,29 @@ fun ChatContainer(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     contentPadding = PaddingValues(bottom = 20.dp)
                 ) {
-                    items(state.chatHistory) { message ->
-                        ChatMessageBubble(
-                            message = message,
-                            onToggleTelemetry = {
-                                viewModel.toggleMessageTelemetry(message.id)
-                            },
-                            onToggleDetails = {
-                                viewModel.toggleMessageDetails(message.id)
-                            }
-                        )
+                    items(state.chatHistory, key = { it.id }) { message ->
+                        var isAnimatedIn by remember { mutableStateOf(false) }
+                        LaunchedEffect(Unit) {
+                            isAnimatedIn = true
+                        }
+                        
+                        androidx.compose.animation.AnimatedVisibility(
+                            visible = isAnimatedIn,
+                            enter = fadeIn(animationSpec = tween(450)) + slideInVertically(
+                                initialOffsetY = { 35 },
+                                animationSpec = tween(450)
+                            )
+                        ) {
+                            ChatMessageBubble(
+                                message = message,
+                                onToggleTelemetry = {
+                                    viewModel.toggleMessageTelemetry(message.id)
+                                },
+                                onToggleDetails = {
+                                    viewModel.toggleMessageDetails(message.id)
+                                }
+                            )
+                        }
                     }
 
                     if (state.ongoingInference) {
